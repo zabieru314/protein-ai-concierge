@@ -1,78 +1,67 @@
 import streamlit as st
 import gspread
-from google.oauth2.service_account import Credentials
 import pandas as pd
+import os
+import json
 import sys
-import os # ファイルパスを扱うためにインポート
 
-# @st.cache_dataを一時的にコメントアウトすると、デバッグ中に毎回関数が実行されるようになります。
-# 動作が確認できたらコメントを外してください。
-# @st.cache_data(ttl=3600)
+def get_gspread_client():
+    """
+    StreamlitのSecretsとローカルの認証ファイルを両方試し、
+    gspreadの認証済みクライアントを返す、より堅牢な関数。
+    """
+    print("--- get_gspread_client関数が実行されました ---", file=sys.stderr)
+    
+    # --- 方法1: Streamlit Secrets (デプロイ環境用) ---
+    try:
+        if "g_credentials" in st.secrets:
+            print("  - Streamlit Secretsから認証情報を読み込みます...", file=sys.stderr)
+            creds_json_str = st.secrets["g_credentials"]
+            creds_json = json.loads(creds_json_str)
+            client = gspread.service_account_from_dict(creds_json)
+            print("  - [成功] Secretsを使った認証に成功しました。", file=sys.stderr)
+            return client
+    except Exception as e:
+        print(f"  - [警告] Secretsの解析中にエラーが発生しました: {e}", file=sys.stderr)
+
+    # --- 方法2: ローカルのcredentials.json (ローカル開発環境用) ---
+    try:
+        print("  - ローカルの認証ファイルを探します...", file=sys.stderr)
+        creds_path = os.path.join(os.path.dirname(__file__), '..', 'credentials.json')
+        if os.path.exists(creds_path):
+            client = gspread.service_account(filename=creds_path)
+            print("  - [成功] ローカルファイルを使った認証に成功しました。", file=sys.stderr)
+            return client
+    except Exception as e:
+        print(f"  - [警告] ローカルファイルの読み込み中にエラーが発生しました: {e}", file=sys.stderr)
+
+    # --- どちらも失敗した場合 ---
+    print("  - [エラー] 有効な認証情報が見つかりませんでした。", file=sys.stderr)
+    return None
+
 def get_all_records():
-    """
-    Googleスプレッドシートからすべてのレコードを取得し、Pandas DataFrameとして返す関数。
-    (credentials.json直接読み込み版)
-    """
+    """Googleスプレッドシートから全てのプロテインデータを取得し、DataFrameとして返す"""
     print("\n--- get_all_records関数が実行されました ---", file=sys.stderr)
     
-    # credentials.jsonファイルのパスを指定
-    # このスクリプト(google_sheets_client.py)から見て、一つ上の階層(synapse_mvp/)にあるファイルを指す
-    credentials_path = os.path.join(os.path.dirname(__file__), '..', 'credentials.json')
-    print(f"ステップ1: 認証ファイル '{credentials_path}' の存在を確認します...", file=sys.stderr)
-
-    if not os.path.exists(credentials_path):
-        error_message = "認証ファイル 'credentials.json' が見つかりません。プロジェクトのルートフォルダに配置してください。"
-        print(f"!!!!!! エラー !!!!!!: {error_message}", file=sys.stderr)
-        st.error(error_message)
-        return pd.DataFrame()
-    
-    print("  - 認証ファイルの存在を確認しました。", file=sys.stderr)
+    gc = get_gspread_client()
+    if not gc:
+        st.error("Googleスプレッドシートへの認証に失敗しました。Secretsまたは認証ファイルを確認してください。")
+        return pd.DataFrame() # 認証失敗時は空のDataFrameを返す
 
     try:
-        # ステップ2: secrets.tomlからスプレッドシートキーのみを読み込む
-        print("ステップ2: secrets.tomlからスプレッドシートキーを読み込みます...", file=sys.stderr)
-        spreadsheet_key = st.secrets["spreadsheet_key"]
-        print("  - スプレッドシートキーの読み込み成功。", file=sys.stderr)
-
-        # ステップ3: 認証ファイルを使ってGoogle APIに接続
-        print("ステップ3: 認証ファイルを使ってGoogle APIへの接続を試みます...", file=sys.stderr)
-        scopes = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
-        creds = Credentials.from_service_account_file(credentials_path, scopes=scopes)
-        client = gspread.authorize(creds)
-        print("  - Google APIへの接続成功。", file=sys.stderr)
-
-        # ステップ4: スプレッドシートを開く
-        print(f"ステップ4: スプレッドシート (キー: {spreadsheet_key[:10]}...) を開きます...", file=sys.stderr)
-        spreadsheet = client.open_by_key(spreadsheet_key)
+        spreadsheet_key = st.secrets["g_spreadsheet_key"] # g_spreadsheet_key に統一
+        spreadsheet = gc.open_by_key(spreadsheet_key)
         worksheet = spreadsheet.sheet1
-        print("  - スプレッドシートのオープン成功。", file=sys.stderr)
-
-        # ステップ5: 全レコードを取得
-        print("ステップ5: 全レコードの取得を開始します...", file=sys.stderr)
+        
         records = worksheet.get_all_records()
         df = pd.DataFrame(records)
-        print(f"  - {len(records)}件のレコード取得成功。", file=sys.stderr)
         
-        # ステップ6: レコードのフィルタリング
-        print("ステップ6: 'active'なレコードをフィルタリングします...", file=sys.stderr)
-        active_df = df[df['Status'] == 'active']
-        print(f"  - フィルタリング後のレコード数: {len(active_df)}件", file=sys.stderr)
-        
-        print("--- 全ての処理が正常に完了しました ---\n", file=sys.stderr)
-        return active_df
+        if 'Status' in df.columns:
+            df = df[df['Status'] == 'active']
+
+        print(f"  - [成功] {len(df)}件の'active'なレコードを取得しました。", file=sys.stderr)
+        return df
 
     except Exception as e:
-        print(f"\n!!!!!! エラーが発生しました !!!!!!", file=sys.stderr)
-        print(f"エラーのタイプ: {type(e).__name__}", file=sys.stderr)
-        print(f"エラーメッセージ: {e}", file=sys.stderr)
-        print("!!!!!! トラブルシューティングのヒント !!!!!", file=sys.stderr)
-        if isinstance(e, KeyError) and 'spreadsheet_key' in str(e):
-             print("  - 'spreadsheet_key'エラーは、.streamlit/secrets.tomlにスプレッドシートキーが設定されていないことを示します。", file=sys.stderr)
-        elif isinstance(e, gspread.exceptions.SpreadsheetNotFound):
-            print("  - 'SpreadsheetNotFound'エラーは、スプレッドシートキーが間違っているか、サービスアカウントのメールアドレスにシートが共有されていないことを示します。", file=sys.stderr)
-        elif 'invalid_grant' in str(e):
-             print("  - 'invalid_grant'エラーは、認証情報(credentials.json)に問題があるか、PCの時刻がずれている可能性があります。", file=sys.stderr)
-        print("---------------------------------------\n", file=sys.stderr)
-        
-        st.error(f"Google Sheetsへの接続中にエラーが発生しました。詳細はターミナル（コンソール）を確認してください。")
-        return pd.DataFrame()
+        st.error(f"スプレッドシートのデータ取得中にエラーが発生しました: {e}")
+        return pd.DataFrame() # エラー時も空のDataFrameを返す
