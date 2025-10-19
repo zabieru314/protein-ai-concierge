@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+
+# Streamlit secrets
+.streamlit/secrets.toml
+
+# Google OAuth credentials
+credentials.json
+
+# OS-specific
+.DS_Store
+
+# --- Secrets ---
+# APIキーやパスワードなどの秘密情報を含むファイル
+.env
+credentials.json
+.streamlit/secrets.toml
+
+# --- Cache & System Files ---
+# Pythonが自動生成するキャッシュフォルダ
+__pycache__/
+
+# 過去のファイルなどを保管するフォルダ
+過去/
