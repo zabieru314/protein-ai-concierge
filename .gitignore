@@ -13,6 +13,7 @@ venv/
 
 # Google OAuth credentials
 credentials.json
+config.json
 
 # OS-specific
 .DS_Store
