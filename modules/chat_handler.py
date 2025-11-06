@@ -209,12 +209,11 @@ def handle_ai_response(protein_df: pd.DataFrame):
                 chat_history=chat_history_text, nutrition_tip=nutrition_tip_text
             )
 
-            full_response = ""
-            for chunk in ai_response_stream:
-                full_response += chunk
-                response_placeholder.markdown(full_response + "▌")
-            
-            response_placeholder.empty()
+            # ▼▼▼【ここからが新しい、安定したストリーミング処理】▼▼▼
+            # st.empty() と手動ループを削除し、st.write_stream に置き換える。
+            # これだけで、画面へのストリーミング表示と、全テキストの変数への格納を同時に行ってくれる。
+            full_response = response_placeholder.write_stream(ai_response_stream)
+            # ▲▲▲【ここまでが新しい処理】▲▲▲
 
         # [EVIDENCE A] AIからの生の応答を、加工せずにそのまま表示
         print("\n" + "-"*80, file=sys.stderr)
