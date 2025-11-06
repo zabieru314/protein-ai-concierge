@@ -316,4 +316,3 @@ def handle_ai_response(protein_df: pd.DataFrame):
     
     finally:
         st.session_state.processing = False
-        st.rerun()

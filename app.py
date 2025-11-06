@@ -63,23 +63,29 @@ if not st.session_state.diagnosis_complete:
     # 診断フォームの表示
     ui_components.render_diagnosis_form(protein_df)
 else:
-    # チャット画面の表示
-    prompt = ui_components.render_chat_interface(protein_df)
+    # --- コンサルティング(チャット)フェーズ ---
     
     # ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
-    # ★★★ ここが、あなたのコードを尊重した、最後のロジック修正です ★★★
-    # ★★★ 二重の st.rerun() をなくし、AIの処理をここに統合します ★★★
+    # ★★★ ここが、指揮者を一人にするための、最後のロジック修正です ★★★
     # ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
-    if prompt:
-        # ユーザーからの新しい入力があった場合
+    
+    # [ステップ1] まず、UIを描画し、ユーザーからの入力を受け取る
+    #            (この中でボタンが押されると、ui_componentsが一度目のrerunを呼び出します)
+    prompt = ui_components.render_chat_interface(protein_df)
+
+    # [ステップ2] もし、新しい入力があった場合のみ、AIの処理を実行する
+    #            st.session_state.get("processing", False) のチェックで、二重実行を完全に防ぎます
+    if prompt and not st.session_state.get("processing", False):
+        
+        # 処理開始を宣言
+        st.session_state.processing = True
+        
+        # ユーザーの入力を履歴に追加
         st.session_state.messages.append({"role": "user", "content": prompt})
         
-        # 処理中のフラグを立て、スピナーを表示する
-        st.session_state.processing = True
-        with st.spinner("AIが応答を生成中です..."):
-            # AIの応答処理を、このままの流れで直接呼び出す
-            chat_handler.handle_ai_response(protein_df)
+        # AIの処理を呼び出す（この中で st.rerun() は、もう呼ばれません）
+        chat_handler.handle_ai_response(protein_df)
         
-        # 処理が終わったら、フラグを解除し、一度だけ再実行して画面を最終的に更新する
-        st.session_state.processing = False
+        # [ステップ3] すべての処理が終わった後、指揮者が、ただ一度だけタクトを振る
+        #            これにより、AIの応答が画面に最終的に反映されます
         st.rerun()
