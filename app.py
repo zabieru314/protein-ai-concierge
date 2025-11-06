@@ -49,14 +49,18 @@ if not st.session_state.diagnosis_complete:
     ui_components.render_diagnosis_form(protein_df)
 else:
     # --- コンサルティング(チャット)フェーズ ---
+    
+    # [ステップ1] まず、UIを描画し、手足の脳からの「報告」を受け取る
     prompt = ui_components.render_chat_interface(protein_df)
 
-    # [指揮者による、第一のタクト] ユーザーからの入力を受け付け、仕切り直す
-    if prompt:
-        st.session_state.messages.append({"role": "user", "content": prompt})
+    # [ステップ2] もし、新しい報告があった場合のみ、メインの脳が処理を開始する
+    if prompt and not st.session_state.get("processing", False):
+        
         st.session_state.processing = True
-        st.rerun()
-
-    # [指揮者による、第二のタクト] 仕切り直した後、AIの処理を実行する
-    if st.session_state.get("processing"):
+        st.session_state.messages.append({"role": "user", "content": prompt})
+        
+        # AIの処理を呼び出す（この中で st.rerun() は呼ばれない）
         chat_handler.handle_ai_response(protein_df)
+        
+        # [ステップ3] すべての処理が終わった後、メインの脳が、ただ一度だけ「再起動せよ」と命令する
+        st.rerun()
