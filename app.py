@@ -14,7 +14,7 @@ st.set_page_config(
 )
 
 # --- 関数定義 ---
-@st.cache_data(ttl=600) # 10分間キャッシュを保持
+@st.cache_data(ttl=600)
 def load_data():
     """データベースからプロテイン情報を読み込み、キャッシュする関数"""
     df = get_all_records()
@@ -67,16 +67,19 @@ else:
     prompt = ui_components.render_chat_interface(protein_df)
     
     # ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
-    # ★★★ ここが、舞台を安定させるための、最も重要なロジック変更です ★★★
-    # ★★★ st.rerun() をやめ、Streamlitの自然な流れに任せます ★★★
+    # ★★★ ここが、あなたのコードを尊重した、最後のロジック修正です ★★★
+    # ★★★ 二重の st.rerun() をなくし、AIの処理をここに統合します ★★★
     # ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
-    if prompt and not st.session_state.get("processing", False):
+    if prompt:
         # ユーザーからの新しい入力があった場合
         st.session_state.messages.append({"role": "user", "content": prompt})
         
-        # AIの応答処理を、このままの流れで直接呼び出す
+        # 処理中のフラグを立て、スピナーを表示する
+        st.session_state.processing = True
         with st.spinner("AIが応答を生成中です..."):
+            # AIの応答処理を、このままの流れで直接呼び出す
             chat_handler.handle_ai_response(protein_df)
         
-        # 処理が終わったら、一度だけ再実行して画面を更新する
+        # 処理が終わったら、フラグを解除し、一度だけ再実行して画面を最終的に更新する
+        st.session_state.processing = False
         st.rerun()
