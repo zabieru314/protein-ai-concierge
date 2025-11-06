@@ -202,8 +202,6 @@ def render_chat_interface(protein_df: pd.DataFrame):
                         if "table_info" in st.session_state:
                             del st.session_state.table_info
                         st.session_state.prompt_from_button = suggestion
-                        # return文を削除し、代わりにrerunを呼び出して即座に画面を更新させる
-                        st.rerun()
                         # ▲▲▲【修正箇所】ここまで▲▲▲
 
     # --- チャット入力欄の表示 ---
