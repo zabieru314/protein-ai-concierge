@@ -5,57 +5,78 @@ import pandas as pd
 import re
 import json
 import sys
-# import streamlit.components.v1 as components # 不要になったため削除
+
 # --- ページ設定 ---
 st.set_page_config(
-    page_title="THE PROTEIN LOGIC", # ブラウザのタブに表示されるタイトル
-    page_icon="🔬",                 # ブラウザのタブに表示されるアイコン
+    page_title="THE PROTEIN LOGIC",
+    page_icon="🔬",
     layout="centered"
 )
-# --- 関数定義 (アプリケーションのセットアップ) ---
+
+# --- 関数定義 ---
+@st.cache_data(ttl=600) # 10分間キャッシュを保持
 def load_data():
-    return get_all_records()
+    """データベースからプロテイン情報を読み込み、キャッシュする関数"""
+    df = get_all_records()
+    return df
 
 def initialize_session_state():
+    """セッション状態の変数を初期化する関数"""
     if "diagnosis_complete" not in st.session_state:
         st.session_state.diagnosis_complete = False
     if "persona" not in st.session_state:
         st.session_state.persona = {
             'experience': '継続的に飲んでいる', 
-            'current_brand': None, # ★★★ 初期値を None に変更 ★★★
-            'baseline_product_id': None, # ★★★ この行を新しく追加 ★★★
+            'current_brand': None,
+            'baseline_product_id': None,
             'purpose': '筋肉を大きくしたい',
             'priorities': {'価格の安さ': True, '味のおいしさ': False, '成分の品質': False, '有名ブランド': False}
         }
     if "messages" not in st.session_state:
         st.session_state.messages = []
 
-# 1. セッションを初期化する
+# --- メイン処理 ---
+
+# 1. セッションを初期化
 initialize_session_state()
 
-# 2. ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
-#    if/elseが始まる前に、必ずデータベースを読み込んでおく
-#    これが NameError を解決します
-#    ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
+# 2. データベースを読み込む
 protein_df = load_data()
+
+# 3. データが正常に読み込めたかを確認
+if protein_df.empty:
+    st.error("データベースからプロテイン情報を読み込めませんでした。管理者にお問い合わせください。")
+    st.stop()
+
+# 4. データの前処理
+if 'ProteinPerServing(g)' in protein_df.columns and 'ServingSize(g)' in protein_df.columns:
+    protein_df['ProteinPurity(%)'] = (protein_df['ProteinPerServing(g)'] / protein_df['ServingSize(g)']) * 100
+else:
+    st.error("データベースに必要な列（ProteinPerServing(g) or ServingSize(g)）がありません。")
+    st.stop()
+
 # --- ヘッダー ---
 st.title("🔬 THE PROTEIN LOGIC - AIプロテインアドバイザー")
 
+# --- 画面描画 ---
 if not st.session_state.diagnosis_complete:
-    ui_components.render_diagnosis_form(protein_df) # ★★★ ここに (protein_df) を追加します ★★★
+    # 診断フォームの表示
+    ui_components.render_diagnosis_form(protein_df)
 else:
-    # --- コンサルティング(チャット)フェーズ ---
-    
-    # 1. チャット画面のUI表示は、ui_componentsモジュールに任せる
-    #    ユーザーが新しいプロンプトを入力した場合、その内容が返される
+    # チャット画面の表示
     prompt = ui_components.render_chat_interface(protein_df)
-
-    # ▼▼▼ if prompt: ブロックを以下のように修正 ▼▼▼
-    if prompt:
+    
+    # ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
+    # ★★★ ここが、舞台を安定させるための、最も重要なロジック変更です ★★★
+    # ★★★ st.rerun() をやめ、Streamlitの自然な流れに任せます ★★★
+    # ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
+    if prompt and not st.session_state.get("processing", False):
+        # ユーザーからの新しい入力があった場合
         st.session_state.messages.append({"role": "user", "content": prompt})
-        st.session_state.processing = True  # 処理開始のフラグを立てる
+        
+        # AIの応答処理を、このままの流れで直接呼び出す
+        with st.spinner("AIが応答を生成中です..."):
+            chat_handler.handle_ai_response(protein_df)
+        
+        # 処理が終わったら、一度だけ再実行して画面を更新する
         st.rerun()
-
-# ▼▼▼ AI応答を呼び出す条件を修正 ▼▼▼
-if st.session_state.get("processing"):
-    chat_handler.handle_ai_response(protein_df)
