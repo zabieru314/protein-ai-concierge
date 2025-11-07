@@ -5,15 +5,17 @@ import json
 import os
 import sys
 
-# (この認証関数は変更ありません)
 def _get_gspread_client():
     try:
-        if "google_credentials" in st.secrets and "json" in st.secrets.google_credentials:
-            creds_json_str = st.secrets.google_credentials.json
+        # ▼▼▼【ここを修正しました】▼▼▼
+        # より確実な「辞書アクセス」方式に変更しました。
+        if "google_credentials" in st.secrets and "json" in st.secrets["google_credentials"]:
+            creds_json_str = st.secrets["google_credentials"]["json"]
             creds_dict = json.loads(creds_json_str)
             gc = gspread.service_account_from_dict(creds_dict)
             print("--- [INFO] Authenticated with Streamlit Secrets for Google Sheets ---", file=sys.stderr)
             return gc
+        # ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
     except Exception:
         pass
 
@@ -37,14 +39,8 @@ def get_all_records():
         return pd.DataFrame()
 
     try:
-        # ▼▼▼【ここを修正しました①】▼▼▼
-        # 実際のファイル名に合わせて、スプレッドシート名を修正しました。
-        spreadsheet_name = "Synapse_ProteinDB_v1" 
-        
-        # ▼▼▼【ここを修正しました②】▼▼▼
-        # 実際のタブ名に合わせて、ワークシート名を修正しました。
+        spreadsheet_name = "Synapse_ProteinDB_v1"
         worksheet_name = "シート1"
-        # ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
         
         spreadsheet = gc.open(spreadsheet_name) 
         worksheet = spreadsheet.worksheet(worksheet_name)
