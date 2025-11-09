@@ -21,7 +21,7 @@ def _initialize_gemini():
 
         genai.configure(api_key=api_key)
         # 安定性と性能のバランスが良い、最新のモデル名を指定します。
-        model = genai.GenerativeModel('gemini-1.5-flash-latest') 
+        model = genai.GenerativeModel('gemini-2.0-flash-lite') 
         print("--- [SUCCESS] Authenticated with Streamlit Secrets for Gemini. ---", file=sys.stderr)
         return model
 
