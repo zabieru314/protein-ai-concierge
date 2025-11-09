@@ -2,62 +2,52 @@ import streamlit as st
 import gspread
 import pandas as pd
 import json
-import os
 import sys
 
 def _get_gspread_client():
     """
-    クラウド環境(st.secrets)とローカル環境(credentials.json)の両方から
-    Googleの認証情報を取得し、gspreadのクライアントオブジェクトを返す関数。
+    Streamlit CloudのSecretsのみを使い、gspreadの認証済みクライアントを返す関数。
     """
     try:
-        # --- Streamlit Cloud環境での認証 ---
-        if "google_credentials" in st.secrets and "json" in st.secrets["google_credentials"]:
-            
-            # ▼▼▼【ここが最後の最重要修正点です】▼▼▼
-            # gspreadがGoogle DriveとGoogle Sheetsの両APIにアクセスすることを明示的に宣言します。
-            scopes = [
-                "https://www.googleapis.com/auth/spreadsheets",
-                "https://www.googleapis.com/auth/drive",
-            ]
-            
-            creds_json_str = st.secrets["google_credentials"]["json"]
-            creds_dict = json.loads(creds_json_str)
-            
-            # 辞書から認証情報を作成する際に、スコープを渡します。
-            creds = gspread.service_account_from_dict(creds_dict, scopes=scopes)
-            print("--- [INFO] Authenticated with Streamlit Secrets for Google Sheets (with explicit scopes) ---", file=sys.stderr)
-            return gspread.Client(auth=creds)
-            # ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
+        # gspreadがGoogle DriveとGoogle Sheetsの両APIにアクセスすることを明示的に宣言します。
+        # これは辞書から認証情報を作成する際に必須です。
+        scopes = [
+            "https://www.googleapis.com/auth/spreadsheets",
+            "https://www.googleapis.com/auth/drive",
+        ]
+
+        # Secretsから認証情報を「辞書形式」で安全に読み込みます。
+        creds_json_str = st.secrets["google_credentials"]["json"]
+        creds_dict = json.loads(creds_json_str)
+
+        # ▼▼▼【これが最後の、そして最も重要な修正点です】▼▼▼
+        # gspread.service_account_from_dict は、認証情報だけでなく、
+        # それを使って認証された「クライアントオブジェクトそのもの」を返します。
+        # これを直接 return するのが、公式に推奨されている正しい使い方です。
+        creds = gspread.service_account_from_dict(creds_dict, scopes=scopes)
+        print("--- [SUCCESS] Authenticated with Streamlit Secrets for Google Sheets. ---", file=sys.stderr)
+        return creds
+        # ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
 
     except Exception as e:
-        # クラウドでの認証に失敗した場合、デバッグのためにエラーを出力します
-        print(f"--- [CRITICAL ERROR] Failed to authenticate with Streamlit Secrets: {e} ---", file=sys.stderr)
-        pass
+        # 認証に失敗した場合、ログに具体的なエラーを出力します。
+        print("--- [CRITICAL ERROR] Failed to authenticate with Streamlit Secrets. ---", file=sys.stderr)
+        print(f"--- [DETAILS] {e} ---", file=sys.stderr)
+        return None
 
-    # --- ローカル環境での認証 ---
-    try:
-        creds_path = os.path.join(os.path.dirname(__file__), '..', 'credentials.json')
-        if os.path.exists(creds_path):
-            # ローカルファイルからの認証では、スコープは自動で設定されます。
-            gc = gspread.service_account(filename=creds_path)
-            print("--- [INFO] Authenticated with local credentials.json for Google Sheets ---", file=sys.stderr)
-            return gc
-    except Exception as e:
-        print(f"--- [ERROR] Failed to authenticate with local credentials.json: {e} ---", file=sys.stderr)
-        pass
-    
-    return None
-
-# (以降の get_all_records 関数は変更ありません)
 def get_all_records():
+    """
+    Googleスプレッドシートから全レコードをDataFrameとして取得するメイン関数。
+    """
+    # 上で定義した、クラウド専用の認証関数を呼び出します。
     gc = _get_gspread_client()
 
     if not gc:
-        st.error("Google Sheetsへの接続認証に失敗しました。StreamlitのSecretsまたはcredentials.jsonファイルを確認してください。")
+        st.error("Google Sheetsへの接続認証に失敗しました。StreamlitのSecretsの設定を確認してください。")
         return pd.DataFrame()
 
     try:
+        # あなたの正しいファイル名とシート名を指定します。
         spreadsheet_name = "Synapse_ProteinDB_v1"
         worksheet_name = "シート1"
         
@@ -65,7 +55,7 @@ def get_all_records():
         worksheet = spreadsheet.worksheet(worksheet_name)
         
         records = worksheet.get_all_records()
-        print("--- [SUCCESS] Successfully fetched records from Google Sheets. ---", file=sys.stderr)
+        print(f"--- [SUCCESS] Successfully fetched records from '{spreadsheet_name}'. ---", file=sys.stderr)
         return pd.DataFrame(records)
 
     except gspread.exceptions.SpreadsheetNotFound:
