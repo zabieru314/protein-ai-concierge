@@ -87,7 +87,7 @@ def render_diagnosis_form(protein_df: pd.DataFrame):
         for i, option in enumerate(exp_options):
             with cols[i]:
                 button_type = "primary" if st.session_state.persona.get('experience') == option else "secondary"
-                st.button(option, on_click=set_experience, args=[option], key=f"q1_{i}", use_container_width=True, type=button_type)
+                st.button(option, on_click=set_experience, args=[option], key=f"q1_{i}", width='stretch', type=button_type)
         if st.session_state.persona.get('experience') == '継続的に飲んでいる':
             st.subheader("Q2. 現在、主に飲んでいるブランドと製品は？")
             all_brands = ["選択してください"] + sorted(protein_df["Brand"].unique())
