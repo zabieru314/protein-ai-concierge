@@ -6,6 +6,48 @@ import sys
 import altair as alt
 
 def render_protein_position_map(all_proteins_df: pd.DataFrame, comparison_df: pd.DataFrame):
+    """
+    価格とタンパク質含有率の2軸で、全プロテインのポジションマップを描画する関数。
+    比較対象の商品はハイライト表示する。
+    """
+    st.subheader("プロテイン・ポジションマップ")
+
+    # グラフ描画用にデータをコピー
+    plot_df = all_proteins_df.copy()
+
+    # 比較対象がない場合は、全商品を「その他の商品」としてプロット
+    plot_df['Highlight'] = 'その他の商品'
+
+    # 比較対象がある場合は、それらを色分けするための列を追加
+    if not comparison_df.empty:
+        # 最初の行をベースライン（現在の商品）とする
+        baseline_id = comparison_df.iloc[0]['ProductID']
+        # 2行目以降をAIの提案とする
+        recommend_ids = comparison_df.iloc[1:]['ProductID'].tolist()
+        
+        plot_df.loc[plot_df['ProductID'] == baseline_id, 'Highlight'] = '現在の商品'
+        plot_df.loc[plot_df['ProductID'].isin(recommend_ids), 'Highlight'] = 'AIの提案'
+
+    # Altairを使って散布図を作成
+    chart = alt.Chart(plot_df).mark_circle(size=100).encode(
+        x=alt.X('PricePerKg(JPY):Q', title='価格 (円/kg) ←安い', scale=alt.Scale(zero=False), sort='descending'),
+        y=alt.Y('ProteinPurity(%):Q', title='タンパク質含有率 (%) ↑高い', scale=alt.Scale(zero=False)),
+        color=alt.Color('Highlight:N', title='凡例',
+            scale=alt.Scale(
+                domain=['現在の商品', 'AIの提案', 'その他の商品'],
+                range=['#1f77b4', '#2ca02c', 'lightgray'] # 青, 緑, グレー
+            )
+        ),
+        tooltip=['Brand', 'ProductName', 'PricePerKg(JPY)', 'ProteinPurity(%)']
+    ).properties(
+        title='市場全体におけるあなたのプロテインのポジション'
+    ).interactive()
+
+    st.altair_chart(chart, use_container_width=True)
+    st.caption("グラフ上の点をクリック＆ドラッグで移動、マウスホイールで拡大・縮小ができます。")
+
+
+def render_protein_position_map(all_proteins_df: pd.DataFrame, comparison_df: pd.DataFrame):
     # (この関数は変更ありません)
     st.subheader("プロテイン・ポジションマップ")
     # ... (以降のコードは省略しませんが、内容は同じです)
